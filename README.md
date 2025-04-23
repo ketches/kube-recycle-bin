@@ -70,7 +70,6 @@ make install
 
 Note: The prerequisite is that `krb-controller` and `krb-webhook` have been successfully deployed.
 
-场景：自动回收 `dev`, `prod` 命名空间下删除的 `Deployment`, `StatefulSet` 和 `Service` 资源。
 Scenario: Automatically recycle deleted `Deployment`, `StatefulSet`, and `Service` resources in the `dev` and `prod` namespaces.
 
 1. Create a recycling policy
