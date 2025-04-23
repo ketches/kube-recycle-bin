@@ -75,8 +75,12 @@ Note: 前提是 `krb-controller` 和 `krb-webhook` 已经部署成功。
 
 1. 创建回收策略
 
-```yaml
+```bash
+# 创建回收策略
 krb-cli recycle deployments statefulsets services -n dev,prod
+
+# 查看创建的回收策略
+kubectl get rp
 ```
 
 创建回收策略后，`krb-controller` 会自动创建 `validatingwebhookconfigurations`

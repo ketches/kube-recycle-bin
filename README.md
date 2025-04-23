@@ -75,10 +75,14 @@ Scenario: Automatically recycle deleted `Deployment`, `StatefulSet`, and `Servic
 1. Create a recycling policy
 
 ```bash
+# Create recycle policies
 krb-cli recycle deployments statefulsets services -n dev,prod
+
+# Check the created recycle policies
+kubectl get rp
 ```
 
-1. Restore the recycled resource
+2. Restore the recycled resource
 
 ```bash
 # First, create test resources
