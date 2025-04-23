@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: krb-system
+
+# krb-controller
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: krb-controller
+  namespace: krb-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: krb-controller
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create"]
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["validatingwebhookconfigurations"]
+    verbs: ["*"]
+  - apiGroups: ["krb.ketches.cn"]
+    resources: ["recyclepolicies"]
+    verbs: ["*"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: krb-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: krb-controller
+subjects:
+  - kind: ServiceAccount
+    name: krb-controller
+    namespace: krb-system
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krb-controller
+  namespace: krb-system
+spec:
+  selector:
+    matchLabels:
+      app: krb-controller
+  template:
+    metadata:
+      labels:
+        app: krb-controller
+    spec:
+      serviceAccountName: krb-controller
+      containers:
+        - name: krb-controller
+          image: ketches/krb-controller:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+# krb-webhook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: krb-webhook
+  namespace: krb-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: krb-webhook
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create"]
+  - apiGroups: ["krb.ketches.cn"]
+    resources: ["recycleitems"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: krb-webhook
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: krb-webhook
+subjects:
+  - kind: ServiceAccount
+    name: krb-webhook
+    namespace: krb-system
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krb-webhook
+  namespace: krb-system
+spec:
+  selector:
+    matchLabels:
+      app: krb-webhook
+  template:
+    metadata:
+      labels:
+        app: krb-webhook
+    spec:
+      serviceAccountName: krb-webhook
+      containers:
+        - name: krb-webhook
+          image: ketches/krb-webhook:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          ports:
+            - containerPort: 443
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: krb-webhook
+  namespace: krb-system
+spec:
+  selector:
+    app: krb-webhook
+  ports:
+    - port: 443
+      targetPort: 443
+  type: ClusterIP

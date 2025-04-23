@@ -1,0 +1,9 @@
+FROM alpine:latest
+ARG KRB_APPNAME
+ARG TARGETARCH
+
+WORKDIR /run
+
+COPY ./bin/${TARGETARCH}/${KRB_APPNAME} app
+
+ENTRYPOINT ["./app"]

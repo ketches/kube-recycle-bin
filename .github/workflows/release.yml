@@ -1,0 +1,85 @@
+# .github/workflows/release.yml
+name: release
+
+env:
+  ALIYUN_REGISTRY: registry.cn-hangzhou.aliyuncs.com/ketches
+
+on:
+  pull_request:
+  push:
+    tags:
+      - v[0-9]+.*
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set ENV
+        run: |
+          echo "KRB_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
+      - name: Login to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.ALIYUNACR_REGISTRY }}
+          username: ${{ vars.ALIYUNACR_USERNAME }}
+          password: ${{ secrets.ALIYUNACR_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push krb-controller
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            KRB_APPNAME=krb-controller
+          tags: ${{ vars.ALIYUNACR_REGISTRY }}/${{ vars.ALIYUNACR_NAMESPACE }}/krb-controller:${{ env.KRB_VERSION }},${{ vars.ALIYUNACR_REGISTRY }}/${{ vars.ALIYUNACR_NAMESPACE }}/krb-controller:latest
+      
+      - name: Build and push krb-webhook
+        uses: docker/build-push-action@v6
+        with:
+          platforms: |
+            - linux/amd64
+            - linux/arm64
+          push: true
+          build-args: |
+            KRB_APPNAME=krb-webhook
+          tags: |
+            - ${{ vars.ALIYUNACR_REGISTRY }}/${{ vars.ALIYUNACR_NAMESPACE }}/krb-webhook:${{ env.KRB_VERSION }}
+            - ${{ vars.ALIYUNACR_REGISTRY }}/${{ vars.ALIYUNACR_NAMESPACE }}/krb-controller:latest
+
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          # either 'goreleaser' (default) or 'goreleaser-pro'
+          distribution: goreleaser
+          # 'latest', 'nightly', or a semver
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Your GoReleaser Pro key, if you are using the 'goreleaser-pro' distribution
+          # GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}

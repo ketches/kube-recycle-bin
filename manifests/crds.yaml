@@ -1,0 +1,146 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: recycleitems.krb.ketches.cn
+spec:
+  group: krb.ketches.cn
+  names:
+    kind: RecycleItem
+    listKind: RecycleItemList
+    plural: recycleitems
+    singular: recycleitem
+    shortNames:
+      - ri
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            object:
+              type: object
+              properties:
+                group:
+                  type: string
+                  description: |
+                    The group of the recycled object. Such as "apps", "batch", etc.
+                version:
+                  type: string
+                  description: |
+                    The version of the recycle object. Such as "v1", "v1beta1", etc.
+                kind:
+                  type: string
+                  description: |
+                    The kind of the recycle object. Such as "Pod", "Deployment", etc.
+                namespace:
+                  type: string
+                  description: |
+                    The namespace of the recycle object.
+                name:
+                  type: string
+                  description: |
+                    The name of the recycle object.
+                raw:
+                  type: string
+                  format: byte
+                  description: |
+                    The raw object in JSON format. This is a base64 encoded string.
+                    It is used to store the original object that was created.
+                    This field is optional and can be omitted if not needed.
+              required:
+                - version
+                - kind
+                - name
+                - raw
+      additionalPrinterColumns:
+        - name: Group
+          type: string
+          jsonPath: .object.group
+        - name: Version
+          type: string
+          jsonPath: .object.version
+        - name: Kind
+          type: string
+          jsonPath: .object.kind
+        - name: Namespace
+          type: string
+          jsonPath: .object.namespace
+        - name: Name
+          type: string
+          jsonPath: .object.name
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+  preserveUnknownFields: false
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: recyclepolicies.krb.ketches.cn
+spec:
+  group: krb.ketches.cn
+  names:
+    kind: RecyclePolicy
+    listKind: RecyclePolicyList
+    plural: recyclepolicies
+    singular: recyclepolicy
+    shortNames:
+      - rp
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            target:
+              type: object
+              properties:
+                group:
+                  type: string
+                  description: |
+                    Group name. Such as "apps", "batch", etc.
+                resource:
+                  type: string
+                  description: |
+                    Resource name. Such as "deployments", "services", etc.
+                namespaces:
+                  type: array
+                  description: |
+                    Namespaces of target resource to which the recycle policy applies. Such as ["default", "kube-system"], etc.
+                  items:
+                    type: string
+              required:
+                - resource
+      additionalPrinterColumns:
+        - name: Group
+          type: string
+          jsonPath: .target.group
+        - name: Resource
+          type: string
+          jsonPath: .target.resource
+        - name: Namespaces
+          type: string
+          jsonPath: .target.namespaces
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+  preserveUnknownFields: false        
