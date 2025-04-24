@@ -1,4 +1,4 @@
-KRB_VERSION := v0.2.0
+KRB_VERSION := v0.2.1
 
 ALIYUN_REGISTRY := registry.cn-hangzhou.aliyuncs.com/ketches
 
