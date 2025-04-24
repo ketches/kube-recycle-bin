@@ -25,21 +25,20 @@ import (
 	"github.com/ketches/kube-recycle-bin/internal/api"
 	krbclient "github.com/ketches/kube-recycle-bin/internal/client"
 	"github.com/ketches/kube-recycle-bin/internal/completion"
+	"github.com/ketches/kube-recycle-bin/pkg/kube"
 	"github.com/ketches/kube-recycle-bin/pkg/tlog"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/duration"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type GetRecyclePoliciesFlags struct {
-	Group         string
-	Version       string
-	Kind          string
-	Namespace     string
-	AllNamespaces bool
+	TargetResource  string
+	TargetNamespace string
 }
 
-var getRecycylPoliciesFlags GetRecyclePoliciesFlags
+var getRecyclePoliciesFlags GetRecyclePoliciesFlags
 
 // getRecyclePoliciesCmd represents the get recycle policies command
 var getRecyclePoliciesCmd = &cobra.Command{
@@ -48,11 +47,17 @@ var getRecyclePoliciesCmd = &cobra.Command{
 	Short:   "Get recycle policies",
 	Long:    `Get recycle policies. This command retrieves the specified RecyclePolicy resources.`,
 	Example: `
+# Get all RecyclePolicy
+krb-cli get recyclepolicies
+
 # Get RecyclePolicy with names foo and bar
 krb-cli get recyclepolicies foo bar
 
-# Get all RecyclePolicy
-krb-cli get recyclepolicies
+# Get RecyclePolicy for deployments resource
+krb-cli get recyclepolicies --target-resource deployments
+
+# Get RecyclePolicy for default namespace
+krb-cli get recyclepolicies --target-namespace default
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		runGetRecyclePolicies(args)
@@ -63,28 +68,37 @@ krb-cli get recyclepolicies
 func init() {
 	getCmd.AddCommand(getRecyclePoliciesCmd)
 
-	getRecyclePoliciesCmd.Flags().StringVarP(&getRecycylPoliciesFlags.Group, "group", "g", "", "List resources of the specified group")
-	getRecyclePoliciesCmd.Flags().StringVarP(&getRecycylPoliciesFlags.Kind, "kind", "k", "", "List resources of the specified kind")
-	getRecyclePoliciesCmd.Flags().StringVarP(&getRecycylPoliciesFlags.Version, "version", "v", "", "List resources with the specified version")
-	getRecyclePoliciesCmd.Flags().StringVarP(&getRecycylPoliciesFlags.Namespace, "namespace", "n", "default", "List resources in the specified namespace")
-	getRecyclePoliciesCmd.Flags().BoolVarP(&getRecycylPoliciesFlags.AllNamespaces, "all-namespaces", "A", false, "List resources from all namespaces")
+	getRecyclePoliciesCmd.Flags().StringVarP(&getRecyclePoliciesFlags.TargetResource, "target-resource", "", "", "List recycle policies filtered by the specified target resource")
+	getRecyclePoliciesCmd.Flags().StringVarP(&getRecyclePoliciesFlags.TargetNamespace, "target-namespace", "", "", "List recycle policies filtered by the specified target namespace")
 
-	getRecyclePoliciesCmd.MarkFlagsMutuallyExclusive("namespace", "all-namespaces")
+	getRecyclePoliciesCmd.RegisterFlagCompletionFunc("target-resource", completion.RecyclePolicyGroupResource)
+	getRecyclePoliciesCmd.RegisterFlagCompletionFunc("target-namespace", completion.RecyclePolicyNamespace)
 }
 
 func runGetRecyclePolicies(args []string) {
 	var result api.RecyclePolicyList
 	if len(args) > 0 {
-		for _, objName := range args {
-			obj, err := krbclient.RecyclePolicy().Get(context.Background(), objName, client.GetOptions{})
+		for _, name := range args {
+			obj, err := krbclient.RecyclePolicy().Get(context.Background(), name, client.GetOptions{})
 			if err != nil {
-				tlog.Errorf("✗ failed to get RecyclePolicy [%s]: %v, skipping.", objName, err)
+				tlog.Errorf("✗ failed to get RecyclePolicy [%s]: %v, ignored.", name, err)
 				continue
 			}
 			result.Items = append(result.Items, *obj)
 		}
 	} else {
-		list, err := krbclient.RecyclePolicy().List(context.Background(), client.ListOptions{})
+		labelSet := labels.Set{}
+		if getRecyclePoliciesFlags.TargetResource != "" {
+			if gvr, err := kube.GetPreferredGroupVersionResourceFor(getRecyclePoliciesFlags.TargetResource); err != nil {
+				tlog.Panicf("✗ failed to get preferred group version resource: %v", err)
+			} else {
+				labelSet["krb.ketches.cn/target-gr"] = gvr.GroupResource().String()
+			}
+		}
+		list, err := krbclient.RecyclePolicy().List(context.Background(), client.ListOptions{
+			LabelSelector: labels.SelectorFromSet(labelSet),
+			Namespace:     getRecyclePoliciesFlags.TargetNamespace,
+		})
 		if err != nil {
 			tlog.Panicf("✗ failed to list RecyclePolicy: %v", err)
 			return

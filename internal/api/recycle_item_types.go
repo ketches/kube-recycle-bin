@@ -17,28 +17,30 @@ limitations under the License.
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
-	"github.com/ketches/kube-recycle-bin/pkg/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"sigs.k8s.io/yaml"
 )
 
 type RecycleItem struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Object Object `json:"object"`
+	Object RecycledObject `json:"object"`
 }
 
-type Object struct {
+type RecycledObject struct {
 	Group     string `json:"group,omitempty"`
 	Version   string `json:"version"`
 	Kind      string `json:"kind"`
+	Resource  string `json:"resource"`
 	Namespace string `json:"namespace,omitempty"`
 	Name      string `json:"name"`
 	Raw       []byte `json:"raw"`
@@ -50,18 +52,18 @@ type RecycleItemList struct {
 	Items           []RecycleItem `json:"items"`
 }
 
-func NewRecycleItem(gvk metav1.GroupVersionKind, namespace, name string, raw []byte) *RecycleItem {
+func NewRecycleItem(recycledObj *RecycledObject) *RecycleItem {
+	gr := metav1.GroupResource{
+		Group:    recycledObj.Group,
+		Resource: recycledObj.Resource,
+	}
 	labels := map[string]string{
-		"krb.ketches.cn/object-name":    name,
-		"krb.ketches.cn/object-kind":    gvk.Kind,
-		"krb.ketches.cn/object-version": gvk.Version,
-		"krb.ketches.cn/recycled-at":    fmt.Sprintf("%d", metav1.Now().Unix()),
+		"krb.ketches.cn/object-name": recycledObj.Name,
+		"krb.ketches.cn/object-gr":   gr.String(),
+		"krb.ketches.cn/recycled-at": fmt.Sprintf("%d", metav1.Now().Unix()),
 	}
-	if namespace != "" {
-		labels["krb.ketches.cn/object-namespace"] = namespace
-	}
-	if gvk.Group != "" {
-		labels["krb.ketches.cn/object-group"] = gvk.Group
+	if recycledObj.Namespace != "" {
+		labels["krb.ketches.cn/object-namespace"] = recycledObj.Namespace
 	}
 
 	return &RecycleItem{
@@ -70,68 +72,81 @@ func NewRecycleItem(gvk metav1.GroupVersionKind, namespace, name string, raw []b
 			Kind:       RecycleItemKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   fmt.Sprintf("%s-%s", name, rand.String(8)),
+			Name:   fmt.Sprintf("%s-%s", recycledObj.Name, rand.String(8)),
 			Labels: labels,
 		},
-		Object: Object{
-			Group:     gvk.Group,
-			Version:   gvk.Version,
-			Kind:      gvk.Kind,
-			Namespace: namespace,
-			Name:      name,
-			Raw:       raw,
-		},
+		Object: *recycledObj,
 	}
 }
 
-func (r *RecycleItem) ObjectName() string {
-	return r.Object.Name
-}
-
-func (r *RecycleItem) ObjectNamespace() string {
-	return r.Object.Namespace
-}
-
-func (r *RecycleItem) ObjectNamespacedName() types.NamespacedName {
+func (obj *RecycledObject) Key() types.NamespacedName {
 	return types.NamespacedName{
-		Name:      r.Object.Name,
-		Namespace: r.Object.Namespace,
+		Name:      obj.Name,
+		Namespace: obj.Namespace,
 	}
 }
 
-func (r *RecycleItem) ObjectGroupVersionKind() schema.GroupVersionKind {
+func (obj *RecycledObject) GroupVersionKind() schema.GroupVersionKind {
 	return schema.GroupVersionKind{
-		Group:   r.Object.Group,
-		Version: r.Object.Version,
-		Kind:    r.Object.Kind,
+		Group:   obj.Group,
+		Version: obj.Version,
+		Kind:    obj.Kind,
 	}
 }
 
-func (r *RecycleItem) ObjectGroupVersionResource() schema.GroupVersionResource {
-	gvr, err := kube.GetGroupVersionResourceFromGroupVersionKind(r.ObjectGroupVersionKind())
-	if err != nil {
-		return schema.GroupVersionResource{}
+func (obj *RecycledObject) GroupVersionResource() schema.GroupVersionResource {
+	return schema.GroupVersionResource{
+		Group:    obj.Group,
+		Version:  obj.Version,
+		Resource: obj.Resource,
 	}
-	return gvr
+
 }
 
-func (r *RecycleItem) ObjectRaw() []byte {
-	return r.Object.Raw
+func (obj *RecycledObject) GroupResource() schema.GroupResource {
+	return schema.GroupResource{
+		Group:    obj.Group,
+		Resource: obj.Resource,
+	}
 }
 
-func (r *RecycleItem) ObjectUnstructured() (*unstructured.Unstructured, error) {
+func (obj *RecycledObject) ObjectGroupKind() schema.GroupKind {
+	return schema.GroupKind{
+		Group: obj.Group,
+		Kind:  obj.Kind,
+	}
+}
+
+func (obj *RecycledObject) Unstructured() (*unstructured.Unstructured, error) {
 	unstructuredObj := &unstructured.Unstructured{}
-	if err := json.Unmarshal(r.Object.Raw, unstructuredObj); err != nil {
+	if err := json.Unmarshal(obj.Raw, unstructuredObj); err != nil {
 		return nil, err
 	}
 
-	sanitizeMetadata(unstructuredObj)
+	// Remove the resourceVersion field from the metadata, so it
+	// doesn't cause conflicts when creating a new object.
+	unstructured.RemoveNestedField(unstructuredObj.Object, "metadata", "resourceVersion")
 
 	return unstructuredObj, nil
 }
 
-func sanitizeMetadata(u *unstructured.Unstructured) {
-	// Remove the resourceVersion field from the metadata, so it
-	// doesn't cause conflicts when creating a new object.
-	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
+func (obj *RecycledObject) JSON() string {
+	return string(obj.Raw)
+}
+
+func (obj *RecycledObject) IndentedJSON() (string, error) {
+	var out bytes.Buffer
+	if err := json.Indent(&out, obj.Raw, "", "  "); err != nil {
+		return "", err
+	}
+
+	return out.String(), nil
+}
+
+func (obj *RecycledObject) YAML() (string, error) {
+	b, err := yaml.JSONToYAML(obj.Raw)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }

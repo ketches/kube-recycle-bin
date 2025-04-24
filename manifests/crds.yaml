@@ -41,6 +41,10 @@ spec:
                   type: string
                   description: |
                     The kind of the recycle object. Such as "Pod", "Deployment", etc.
+                resource:
+                  type: string
+                  description: |
+                    The kind of the recycle object. Such as "pods", "deployments", etc.
                 namespace:
                   type: string
                   description: |
@@ -59,6 +63,7 @@ spec:
               required:
                 - version
                 - kind
+                - resource
                 - name
                 - raw
       additionalPrinterColumns:
@@ -71,6 +76,9 @@ spec:
         - name: Kind
           type: string
           jsonPath: .object.kind
+        - name: Resource
+          type: string
+          jsonPath: .object.resource
         - name: Namespace
           type: string
           jsonPath: .object.namespace

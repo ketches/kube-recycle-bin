@@ -35,10 +35,10 @@ func TestCreateRecycleItem(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-recycle-item",
 		},
-		Object: api.Object{
+		Object: api.RecycledObject{
 			Group:     "apps",
 			Version:   "v1",
-			Kind:      "Deployment",
+			Resource:  "Deployment",
 			Namespace: "default",
 			Name:      "nginx-deployment",
 			Raw: []byte(`apiVersion: apps/v1
@@ -97,7 +97,7 @@ func TestCreateRecyclePolicy(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-recycle-policy",
 		},
-		Target: api.Target{
+		Target: api.RecycleTarget{
 			Group:      "apps",
 			Resource:   "deployments",
 			Namespaces: []string{"default"},

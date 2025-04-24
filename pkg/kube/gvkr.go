@@ -17,10 +17,10 @@ limitations under the License.
 package kube
 
 import (
+	"fmt"
 	"slices"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/restmapper"
 )
 
@@ -106,9 +106,17 @@ func GetGroupVersionKindFromResourceName(resourceName string) ([]schema.GroupVer
 	return result, nil
 }
 
-// GetGroupVersionResourceFromResourceName returns the GroupVersionResource from the given resource name.
-// resource name can be plural, singular or short names.
-func GetGroupVersionResourceFromResourceName(resourceName string) ([]schema.GroupVersionResource, error) {
+// GetPreferredGroupVersionResourceFor returns the preferred GroupVersionResource from the given resource name.
+// resource name can be plural, singular, short names or grouped resource name like deployments.apps
+func GetPreferredGroupVersionResourceFor(resource string) (*schema.GroupVersionResource, error) {
+	gvr, gr := schema.ParseResourceArg(resource)
+	if gvr == nil {
+		gvr = &schema.GroupVersionResource{
+			Resource: gr.Resource,
+			Group:    gr.Group,
+		}
+	}
+
 	discoveryClient := DiscoveryClient()
 
 	apiResourceLists, err := discoveryClient.ServerPreferredResources()
@@ -116,43 +124,25 @@ func GetGroupVersionResourceFromResourceName(resourceName string) ([]schema.Grou
 		return nil, err
 	}
 
-	var result []schema.GroupVersionResource
 	for _, resourceList := range apiResourceLists {
 		gv, err := schema.ParseGroupVersion(resourceList.GroupVersion)
 		if err != nil {
 			continue
 		}
 
-		gr := schema.ParseGroupResource(resourceName)
-		for _, res := range resourceList.APIResources {
+		if gr.Group != "" && gv.Group != gr.Group && gvr.Group != "" && gv.Group != gvr.Group {
+			continue
+		}
 
-			if gr.Group != "" && res.Group != "" && res.Group != gr.Group {
-				continue
-			}
+		for _, res := range resourceList.APIResources {
 			if res.Name == gr.Resource || res.SingularName == gr.Resource || slices.Contains(res.ShortNames, gr.Resource) {
-				result = append(result, schema.GroupVersionResource{
+				return &schema.GroupVersionResource{
 					Group:    gv.Group,
 					Version:  gv.Version,
 					Resource: res.Name,
-				})
+				}, nil
 			}
 		}
 	}
-	return result, nil
-}
-
-// GetPreferredGroupVersionResource returns the preferred GroupVersionResource for the given fuzz resource name.
-// resource name can be plural, singular, short names or grouped resource name like deployments.apps, deployments.v1.apps.
-func GetPreferredGroupVersionResource(fuzzResourceName string) (*schema.GroupVersionResource, error) {
-	discoveryClient := DiscoveryClient()
-	restMapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discoveryClient))
-
-	gvr, err := restMapper.ResourceFor(schema.GroupVersionResource{
-		Resource: fuzzResourceName,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &gvr, nil
+	return nil, fmt.Errorf("can not find preferred GroupVersionResource for resource %s", resource)
 }

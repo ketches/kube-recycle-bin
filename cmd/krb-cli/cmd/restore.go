@@ -28,11 +28,29 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type RestoreFlags struct {
+	ObjectResource  string
+	ObjectNamespace string
+}
+
+var restoreFlags RestoreFlags
+
 // restoreCmd represents the restore command
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
-	Short: "Restore resources from a RecycleItem",
+	Short: "Restore recycled resource objects from RecycleItem",
 	Args:  cobra.MinimumNArgs(1),
+	Example: `
+# Restore RecycleItem with names foo and bar
+krb-cli restore foo bar
+
+# Restore RecycleItem deployments foo and filter by object resource deployments
+krb-cli restore --object-resource deployments foo
+
+# Restore RecycleItem deployments foo-deploy, service foo-svc and filter by object namespace dev
+krb-cli restore --object-namespace dev foo-deploy foo-svc
+`,
+
 	Run: func(cmd *cobra.Command, args []string) {
 		runRestore(args)
 	},
@@ -41,6 +59,12 @@ var restoreCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(restoreCmd)
+
+	restoreCmd.Flags().StringVarP(&restoreFlags.ObjectResource, "object-resource", "", "", "Restore recycled resource objects filtered by the specified object resource")
+	restoreCmd.Flags().StringVarP(&restoreFlags.ObjectNamespace, "object-namespace", "", "", "Restore recycled resource objects filtered by the specified object namespace")
+
+	restoreCmd.RegisterFlagCompletionFunc("object-resource", completion.RecycleItemGroupResource)
+	restoreCmd.RegisterFlagCompletionFunc("object-namespace", completion.RecycleItemNamespace)
 }
 
 func runRestore(args []string) {
@@ -55,19 +79,19 @@ func runRestore(args []string) {
 			continue
 		}
 
-		unstructuredObj, err := recycleItem.ObjectUnstructured()
+		unstructuredObj, err := recycleItem.Object.Unstructured()
 		if err != nil {
 			tlog.Printf("✗ failed to get unstructured object from RecycleItem [%s]: %v, ignored.", recycleItemName, err)
 			continue
 		}
 
-		if _, err := kube.DynamicClient().Resource(recycleItem.ObjectGroupVersionResource()).Namespace(recycleItem.ObjectNamespace()).Create(context.Background(), unstructuredObj, metav1.CreateOptions{}); err != nil {
-			tlog.Printf("✗ failed to restore resource [%s]: %v", recycleItem.ObjectNamespacedName().String(), err)
+		if _, err := kube.DynamicClient().Resource(recycleItem.Object.GroupVersionResource()).Namespace(recycleItem.Object.Namespace).Create(context.Background(), unstructuredObj, metav1.CreateOptions{}); err != nil {
+			tlog.Printf("✗ failed to restore recycled resource object [%s]: %v", recycleItem.Object.Key().String(), err)
 		} else {
-			tlog.Printf("✓ restored %s [%s] done.", recycleItem.Kind, recycleItem.ObjectNamespacedName().String())
+			tlog.Printf("✓ restored recycled resource object [%s: %s] done.", recycleItem.Object.Resource, recycleItem.Object.Key().String())
 			// delete the recycle item after successful restore
 			if err := krbclient.RecycleItem().Delete(context.Background(), recycleItemName, client.DeleteOptions{}); err != nil {
-				tlog.Printf("✗ failed to automatically delete RecycleItem [%s]: %v", recycleItemName, err)
+				tlog.Printf("✗ failed to automatically delete RecycleItem [%s] after restore: %v", recycleItemName, err)
 			} else {
 				tlog.Printf("✓ automatically deleted RecycleItem [%s] after restore.", recycleItemName)
 			}

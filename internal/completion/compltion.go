@@ -18,17 +18,49 @@ package completion
 
 import (
 	"context"
+	"slices"
 
 	krbclient "github.com/ketches/kube-recycle-bin/internal/client"
 	"github.com/ketches/kube-recycle-bin/pkg/kube"
 	"github.com/ketches/kube-recycle-bin/pkg/tlog"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/labels"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // None is a shell completion function that does nothing.
 func None(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return nil, cobra.ShellCompDirectiveNoFileComp
+}
+
+func RecycleItemGroupResource(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	list, err := krbclient.RecycleItem().List(context.Background(), client.ListOptions{})
+	if err != nil {
+		tlog.Printf("✗ failed to list recycle items: %v", err)
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var result []string
+	for _, item := range list.Items {
+		result = append(result, item.Object.GroupResource().String())
+	}
+
+	return result, cobra.ShellCompDirectiveNoFileComp
+}
+
+func RecycleItemNamespace(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	list, err := krbclient.RecycleItem().List(context.Background(), client.ListOptions{})
+	if err != nil {
+		tlog.Printf("✗ failed to list recycle items: %v", err)
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var result []string
+	for _, item := range list.Items {
+		result = append(result, item.Object.Namespace)
+	}
+
+	return result, cobra.ShellCompDirectiveNoFileComp
 }
 
 // KubeGroupResources is a shell completion function that lists all group resources.
@@ -39,36 +71,122 @@ func KubeGroupResources(cmd *cobra.Command, args []string, toComplete string) ([
 
 	resources, err := kube.GetAllGroupResources()
 	if err != nil {
-		tlog.Printf("✗ list resources: %v", err)
+		tlog.Printf("✗ failed to get all group resources: %v", err)
+		return nil, cobra.ShellCompDirectiveError
 	}
 
-	return resources, cobra.ShellCompDirectiveNoFileComp
+	var result []string
+	for _, resource := range resources {
+		if slices.Contains(args, resource) {
+			continue
+		}
+		result = append(result, resource)
+	}
+
+	return result, cobra.ShellCompDirectiveNoFileComp
 }
 
 // RecycleItem is a shell completion function that lists all recycle items.
 func RecycleItem(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	list, err := krbclient.RecycleItem().List(context.Background(), client.ListOptions{})
-	if err != nil {
-		tlog.Printf("✗ failed to list recycle items: %v", err)
+	labelSet := labels.Set{}
+	objectNamespace, _ := cmd.Flags().GetString("object-namespace")
+	if objectNamespace != "" {
+		labelSet["krb.ketches.cn/object-namespace"] = objectNamespace
 	}
-	var completions []string
-	for _, obj := range list.Items {
-		completions = append(completions, obj.Name)
+	objectResource, _ := cmd.Flags().GetString("object-resource")
+	if objectResource != "" {
+		if gvr, err := kube.GetPreferredGroupVersionResourceFor(objectResource); err != nil {
+			tlog.Printf("✗ failed to get preferred group version resource: %v", err)
+		} else {
+			labelSet["krb.ketches.cn/object-gr"] = gvr.GroupResource().String()
+		}
 	}
 
-	return completions, cobra.ShellCompDirectiveNoFileComp
+	list, err := krbclient.RecycleItem().List(context.Background(), client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labelSet),
+	})
+	if err != nil {
+		tlog.Printf("✗ failed to list recycle items: %v", err)
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var result []string
+	for _, obj := range list.Items {
+		if slices.Contains(args, obj.Name) {
+			continue
+		}
+		result = append(result, obj.Name)
+	}
+
+	return result, cobra.ShellCompDirectiveNoFileComp
+}
+
+func RecyclePolicyGroupResource(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	list, err := krbclient.RecyclePolicy().List(context.Background(), client.ListOptions{})
+	if err != nil {
+		tlog.Printf("✗ failed to list recycle items: %v", err)
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var result []string
+	for _, item := range list.Items {
+		result = append(result, item.Target.GroupResource().String())
+	}
+
+	return result, cobra.ShellCompDirectiveNoFileComp
+}
+
+func RecyclePolicyNamespace(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	ri, err := krbclient.RecyclePolicy().List(context.Background(), client.ListOptions{})
+	if err != nil {
+		tlog.Printf("✗ failed to list recycle items: %v", err)
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var result []string
+	for _, item := range ri.Items {
+		for _, ns := range item.Target.Namespaces {
+			if ns == "" {
+				continue
+			}
+			result = append(result, ns)
+		}
+	}
+
+	return result, cobra.ShellCompDirectiveNoFileComp
 }
 
 // RecyclePolicy is a shell completion function that lists all recycle policies.
 func RecyclePolicy(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	list, err := krbclient.RecyclePolicy().List(context.Background(), client.ListOptions{})
-	if err != nil {
-		tlog.Printf("✗ failed to list recycle policies: %v", err)
+	labelSet := labels.Set{}
+	targetNamespace, _ := cmd.Flags().GetString("target-namespace")
+	if targetNamespace != "" {
+		labelSet["krb.ketches.cn/target-namespace"] = targetNamespace
 	}
-	var completions []string
-	for _, obj := range list.Items {
-		completions = append(completions, obj.Name)
+	targetResource, _ := cmd.Flags().GetString("target-resource")
+	if targetResource != "" {
+		if gvr, err := kube.GetPreferredGroupVersionResourceFor(targetResource); err != nil {
+			tlog.Printf("✗ failed to get preferred group version resource: %v", err)
+		} else {
+			labelSet["krb.ketches.cn/target-gr"] = gvr.GroupResource().String()
+		}
 	}
 
-	return completions, cobra.ShellCompDirectiveNoFileComp
+	list, err := krbclient.RecyclePolicy().List(context.Background(), client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labelSet),
+	})
+	if err != nil {
+		tlog.Printf("✗ failed to list recycle policies: %v", err)
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var result []string
+	for _, obj := range list.Items {
+		if slices.Contains(args, obj.Name) {
+			continue
+		}
+		result = append(result, obj.Name)
+	}
+
+	return result, cobra.ShellCompDirectiveNoFileComp
 }

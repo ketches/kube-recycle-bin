@@ -63,14 +63,14 @@ func runRecycle(args []string) {
 		tlog.Panicf("✗ please specify a resource to recycle.")
 	}
 
-	for _, fuzzResource := range args {
-		gvr, err := kube.GetPreferredGroupVersionResource(fuzzResource)
+	for _, resource := range args {
+		gvr, err := kube.GetPreferredGroupVersionResourceFor(resource)
 		if err != nil {
 			tlog.Errorf("✗ failed to get gvr from resource name: %v, ignored.", err)
 			continue
 		}
 		if gvr == nil {
-			tlog.Errorf("✗ no resources found for %s, ignored.", fuzzResource)
+			tlog.Errorf("✗ no resources found for %s, ignored.", resource)
 			continue
 		}
 

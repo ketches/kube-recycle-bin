@@ -25,21 +25,20 @@ import (
 	"github.com/ketches/kube-recycle-bin/internal/api"
 	krbclient "github.com/ketches/kube-recycle-bin/internal/client"
 	"github.com/ketches/kube-recycle-bin/internal/completion"
+	"github.com/ketches/kube-recycle-bin/pkg/kube"
 	"github.com/ketches/kube-recycle-bin/pkg/tlog"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/duration"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type GetRecycleItemFlags struct {
-	Group         string
-	Version       string
-	Kind          string
-	Namespace     string
-	AllNamespaces bool
+	ObjectResource  string
+	ObjectNamespace string
 }
 
-var getRecycylItemFlags GetRecycleItemFlags
+var getRecycleItemFlags GetRecycleItemFlags
 
 // getRecycleItemCmd represents the get recycle item command
 var getRecycleItemCmd = &cobra.Command{
@@ -48,11 +47,17 @@ var getRecycleItemCmd = &cobra.Command{
 	Short:   "Get recycle items",
 	Long:    `Get recycle items. This command retrieves the specified RecycleItem resources.`,
 	Example: `
-# Get RecycleItems with names foo and bar
-krb-cli get recycleitems foo bar
+# Get all RecycleItems
+krb-cli get ri
 
-# Get all RecyclePolicies
-krb-cli get recyclepolicies
+# Get RecycleItems with names foo and bar
+krb-cli get ri foo bar
+
+# Get RecycleItems recycled from deployments resource
+krb-cli get ri --object-resource deployments
+
+# Get RecycleItems recycled from dev namespace
+krb-cli get ri --object-namespace dev
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		runGetRecycleItems(args)
@@ -63,28 +68,42 @@ krb-cli get recyclepolicies
 func init() {
 	getCmd.AddCommand(getRecycleItemCmd)
 
-	getRecycleItemCmd.Flags().StringVarP(&getRecycylItemFlags.Group, "group", "g", "", "List resources of the specified group")
-	getRecycleItemCmd.Flags().StringVarP(&getRecycylItemFlags.Kind, "kind", "k", "", "List resources of the specified kind")
-	getRecycleItemCmd.Flags().StringVarP(&getRecycylItemFlags.Version, "version", "v", "", "List resources with the specified version")
-	getRecycleItemCmd.Flags().StringVarP(&getRecycylItemFlags.Namespace, "namespace", "n", "default", "List resources in the specified namespace")
-	getRecycleItemCmd.Flags().BoolVarP(&getRecycylItemFlags.AllNamespaces, "all-namespaces", "A", false, "List resources from all namespaces")
+	getRecycleItemCmd.Flags().StringVarP(&getRecycleItemFlags.ObjectResource, "object-resource", "", "", "List recycled resource objects filtered by the specified object resource")
+	getRecycleItemCmd.Flags().StringVarP(&getRecycleItemFlags.ObjectNamespace, "object-namespace", "", "", "List recycled resource objects filtered by the specified object namespace")
 
-	getRecycleItemCmd.MarkFlagsMutuallyExclusive("namespace", "all-namespaces")
+	getRecycleItemCmd.RegisterFlagCompletionFunc("object-resource", completion.RecycleItemGroupResource)
+	getRecycleItemCmd.RegisterFlagCompletionFunc("object-namespace", completion.RecycleItemNamespace)
 }
 
 func runGetRecycleItems(args []string) {
 	var result api.RecycleItemList
+
 	if len(args) > 0 {
-		for _, objName := range args {
-			obj, err := krbclient.RecycleItem().Get(context.Background(), objName, client.GetOptions{})
+		for _, name := range args {
+			obj, err := krbclient.RecycleItem().Get(context.Background(), name, client.GetOptions{})
 			if err != nil {
-				tlog.Errorf("✗ failed to get RecycleItem [%s]: %v, skipping.", objName, err)
+				tlog.Errorf("✗ failed to get RecycleItem [%s]: %v, skipping.", name, err)
 				continue
 			}
 			result.Items = append(result.Items, *obj)
 		}
 	} else {
-		list, err := krbclient.RecycleItem().List(context.Background(), client.ListOptions{})
+		labelSet := labels.Set{}
+		if getRecycleItemFlags.ObjectNamespace != "" {
+			labelSet["krb.ketches.cn/object-namespace"] = getRecycleItemFlags.ObjectNamespace
+		}
+		if getRecycleItemFlags.ObjectResource != "" {
+			tlog.Println(getRecycleItemFlags.ObjectResource)
+			if gvr, err := kube.GetPreferredGroupVersionResourceFor(getRecycleItemFlags.ObjectResource); err != nil {
+				tlog.Panicf("✗ failed to get preferred group version resource: %v", err)
+			} else {
+				labelSet["krb.ketches.cn/object-gr"] = gvr.GroupResource().String()
+			}
+		}
+
+		list, err := krbclient.RecycleItem().List(context.Background(), client.ListOptions{
+			LabelSelector: labels.SelectorFromSet(labelSet),
+		})
 		if err != nil {
 			tlog.Panicf("✗ failed to list RecycleItem: %v", err)
 			return
@@ -97,7 +116,7 @@ func runGetRecycleItems(args []string) {
 	t.AppendHeader(table.Row{"name", "group", "version", "kind", "namespace", "name", "age"})
 
 	for _, obj := range result.Items {
-		t.AppendRow(table.Row{obj.Name, obj.Object.Group, obj.Object.Version, obj.Object.Kind, obj.Object.Namespace, obj.Object.Name, duration.HumanDuration(time.Since(obj.CreationTimestamp.Time))}, table.RowConfig{
+		t.AppendRow(table.Row{obj.Name, obj.Object.Group, obj.Object.Version, obj.Object.Resource, obj.Object.Namespace, obj.Object.Name, duration.HumanDuration(time.Since(obj.CreationTimestamp.Time))}, table.RowConfig{
 			AutoMerge: true,
 		})
 	}

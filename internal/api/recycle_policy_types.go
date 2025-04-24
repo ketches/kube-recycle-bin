@@ -26,10 +26,10 @@ type RecyclePolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Target Target `json:"target"`
+	Target RecycleTarget `json:"target"`
 }
 
-type Target struct {
+type RecycleTarget struct {
 	Group      string   `json:"group,omitempty"`
 	Resource   string   `json:"resource,omitempty"`
 	Namespaces []string `json:"namespaces,omitempty"`
@@ -46,15 +46,25 @@ func NewRecyclePolicy(gvr schema.GroupVersionResource, targetNamespaces []string
 		targetNamespaces = []string{metav1.NamespaceAll}
 	}
 
+	labels := map[string]string{
+		"krb.ketches.cn/target-gr": gvr.GroupResource().String(),
+	}
+	for _, ns := range targetNamespaces {
+		if ns != metav1.NamespaceAll {
+			labels["krb.ketches.cn/target-namespace-"+ns] = "true"
+		}
+	}
+
 	return &RecyclePolicy{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: GroupVersion.String(),
 			Kind:       RecyclePolicyKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "recycle-" + gvr.Resource + "-" + rand.String(8),
+			Name:   "recycle-" + gvr.Resource + "-" + rand.String(8),
+			Labels: labels,
 		},
-		Target: Target{
+		Target: RecycleTarget{
 			Group:      gvr.Group,
 			Resource:   gvr.Resource,
 			Namespaces: targetNamespaces,
@@ -62,9 +72,9 @@ func NewRecyclePolicy(gvr schema.GroupVersionResource, targetNamespaces []string
 	}
 }
 
-func (p *RecyclePolicy) GetTargetGroupResource() schema.GroupResource {
+func (rt *RecycleTarget) GroupResource() schema.GroupResource {
 	return schema.GroupResource{
-		Group:    p.Target.Group,
-		Resource: p.Target.Resource,
+		Group:    rt.Group,
+		Resource: rt.Resource,
 	}
 }

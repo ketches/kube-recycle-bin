@@ -113,7 +113,7 @@ func TestGetGroupVersionKindFromResourceName(t *testing.T) {
 	}
 }
 
-func TestGetPreferredGroupVersionResource(t *testing.T) {
+func TestGetGroupVersionResourceFromResourceName(t *testing.T) {
 	testdata := []struct {
 		name     string
 		resource string
@@ -177,17 +177,13 @@ func TestGetPreferredGroupVersionResource(t *testing.T) {
 
 	for _, tt := range testdata {
 		t.Run(tt.name, func(t *testing.T) {
-			gvr, err := GetGroupVersionResourceFromResourceName(tt.resource)
+			gvr, err := GetPreferredGroupVersionResourceFor(tt.resource)
 			if err != nil {
 				t.Fatalf("✗ get group version resource: %v", err)
 			}
 
-			if len(gvr) == 0 {
-				t.Fatalf("no group version resource found for %s", tt.resource)
-			}
-
-			if gvr[0].Group != tt.desired.Group || gvr[0].Version != tt.desired.Version || gvr[0].Resource != tt.desired.Resource {
-				t.Errorf("expected %v, got %v", tt.desired, gvr[0])
+			if gvr.Group != tt.desired.Group || gvr.Version != tt.desired.Version || gvr.Resource != tt.desired.Resource {
+				t.Errorf("expected %v, got %v", tt.desired, gvr)
 			}
 		})
 	}
