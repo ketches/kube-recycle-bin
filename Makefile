@@ -1,4 +1,4 @@
-KRB_VERSION := v0.1.0
+KRB_VERSION := v0.2.0
 
 ALIYUN_REGISTRY := registry.cn-hangzhou.aliyuncs.com/ketches
 
@@ -77,7 +77,7 @@ release:
         exit 1; \
     fi
 	@sed -E -i '' 's/(var Version = ")[^"]+(")/\1${KRB_VERSION}\2/' cmd/krb-cli/cmd/version.go
-	@git add cmd/krb-cli/cmd/version.go
+	@git add Makefile cmd/krb-cli/cmd/version.go
 	@git commit -m "Release ${KRB_VERSION}"
 	@git push
 	git tag -a "${KRB_VERSION}" -m "release ${KRB_VERSION}"
