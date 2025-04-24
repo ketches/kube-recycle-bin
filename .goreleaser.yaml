@@ -18,7 +18,7 @@ before:
 builds:
   - env:
       - CGO_ENABLED=0
-    ldflags: -s -X github.com/ketches/kube-recycle-bin/cmd/krb-cli/cmd.Version={{.Version}}
+    ldflags: -s -w -X github.com/ketches/kube-recycle-bin/cmd/krb-cli/cmd.Version={{.Version}}
     main: ./cmd/krb-cli
     goos:
       - linux

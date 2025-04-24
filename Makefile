@@ -5,7 +5,7 @@ ALIYUN_REGISTRY := registry.cn-hangzhou.aliyuncs.com/ketches
 .PHONY: install
 install:
 	@echo "» installing krb-cli..."
-	go install -ldflags="-X github.com/ketches/kube-recycle-bin/cmd/krb-cli/cmd.Version=${KRB_VERSION}" ./cmd/krb-cli
+	go install -ldflags="-s -w -X github.com/ketches/kube-recycle-bin/cmd/krb-cli/cmd.Version=${KRB_VERSION}" ./cmd/krb-cli
 
 .PHONY: build
 build: build-binary build-binary build-docker
@@ -14,13 +14,13 @@ build-binary: build-controller-binary build-webhook-binary
 
 build-controller-binary:
 	@echo "» building krb binary..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/amd64/krb-controller cmd/krb-controller/main.go
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/arm64/krb-controller cmd/krb-controller/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/amd64/krb-controller cmd/krb-controller/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/arm64/krb-controller cmd/krb-controller/main.go
 
 build-webhook-binary:
 	@echo "» building krb binary..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/amd64/krb-webhook cmd/krb-webhook/main.go
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/arm64/krb-webhook cmd/krb-webhook/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/amd64/krb-webhook cmd/krb-webhook/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/arm64/krb-webhook cmd/krb-webhook/main.go
 
 docker-buildx-init:
 	@echo "» initializing docker buildx..."

@@ -11,7 +11,7 @@ COPY cmd/${KRB_APPNAME} ./cmd/${KRB_APPNAME}
 COPY pkg/ ./pkg/
 COPY internal/ ./internal/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o ./bin/${KRB_APPNAME} ./cmd/${KRB_APPNAME}
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o ./bin/${KRB_APPNAME} ./cmd/${KRB_APPNAME}
 
 FROM alpine:latest
 ARG KRB_APPNAME
