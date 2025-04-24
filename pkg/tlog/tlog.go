@@ -28,6 +28,10 @@ const (
 	timeFormat = "060102 15:04:05.000000"
 )
 
+func Print(msg string) {
+	fmt.Print(msg)
+}
+
 func Println(msg string) {
 	fmt.Println(msg)
 }
