@@ -25,6 +25,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	// _ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/go-logr/logr"
 	"github.com/ketches/kube-recycle-bin/internal/api"
 	"github.com/ketches/kube-recycle-bin/pkg/tlog"
 	"github.com/ketches/kube-recycle-bin/pkg/util"
@@ -34,6 +35,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
@@ -43,6 +45,8 @@ var (
 )
 
 func init() {
+	log.SetLogger(logr.New(log.NullLogSink{}))
+
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(api.AddToScheme(scheme))
 }

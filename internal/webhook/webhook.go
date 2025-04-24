@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-logr/logr"
 	"github.com/ketches/kube-recycle-bin/internal/api"
 	krbclient "github.com/ketches/kube-recycle-bin/internal/client"
 	"github.com/ketches/kube-recycle-bin/internal/consts"
@@ -32,7 +33,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+func init() {
+	log.SetLogger(logr.New(log.NullLogSink{}))
+}
 
 // Run starts the webhook server.
 func Run() {
@@ -78,7 +84,7 @@ func recycleDeleteObjects(w http.ResponseWriter, r *http.Request) {
 	}.String())
 
 	// Create RecycleItem to recycle the deleted object.
-	recycleItem := api.NewRecycleItem(*request.RequestKind, request.Namespace, request.Name, request.OldObject.Raw)
+	recycleItem := api.NewRecycleItem(buildRecycledObject(request))
 	if err := retry.OnError(retry.DefaultRetry, k8serrors.IsAlreadyExists, func() error {
 		if err := krbclient.RecycleItem().Create(context.Background(), recycleItem, client.CreateOptions{}); err != nil {
 			return err
@@ -109,6 +115,19 @@ func parseRequest(r *http.Request) (*admissionv1.AdmissionReview, error) {
 	}
 
 	return &request, nil
+}
+
+// buildRecycledObject constructs api.RecycledObject from the request
+func buildRecycledObject(request *admissionv1.AdmissionRequest) *api.RecycledObject {
+	return &api.RecycledObject{
+		Group:     request.Resource.Group,
+		Version:   request.Resource.Version,
+		Resource:  request.Resource.Resource,
+		Kind:      request.Kind.Kind,
+		Namespace: request.Namespace,
+		Name:      request.Name,
+		Raw:       request.OldObject.Raw,
+	}
 }
 
 // response sends the response to the admission webhook.
