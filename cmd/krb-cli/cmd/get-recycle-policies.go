@@ -17,8 +17,11 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -31,11 +34,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/duration"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 type GetRecyclePoliciesFlags struct {
 	TargetResource  string
 	TargetNamespace string
+	OutputFormat    string
 }
 
 var getRecyclePoliciesFlags GetRecyclePoliciesFlags
@@ -70,9 +75,13 @@ func init() {
 
 	getRecyclePoliciesCmd.Flags().StringVarP(&getRecyclePoliciesFlags.TargetResource, "target-resource", "", "", "List recycle policies filtered by the specified target resource")
 	getRecyclePoliciesCmd.Flags().StringVarP(&getRecyclePoliciesFlags.TargetNamespace, "target-namespace", "", "", "List recycle policies filtered by the specified target namespace")
+	getRecyclePoliciesCmd.Flags().StringVarP(&getRecyclePoliciesFlags.OutputFormat, "output", "o", "", "Output format. One of: json|yaml")
 
 	getRecyclePoliciesCmd.RegisterFlagCompletionFunc("target-resource", completion.RecyclePolicyGroupResource)
 	getRecyclePoliciesCmd.RegisterFlagCompletionFunc("target-namespace", completion.RecyclePolicyNamespace)
+	getRecyclePoliciesCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"json", "yaml"}, cobra.ShellCompDirectiveDefault
+	})
 }
 
 func runGetRecyclePolicies(args []string) {
@@ -106,15 +115,44 @@ func runGetRecyclePolicies(args []string) {
 		result = *list
 	}
 
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"name", "group", "resource", "namespaces", "age"})
-
-	for _, obj := range result.Items {
-		t.AppendRow(table.Row{obj.Name, obj.Target.Group, obj.Target.Resource, obj.Target.Namespaces, duration.HumanDuration(time.Since(obj.CreationTimestamp.Time))}, table.RowConfig{
-			AutoMerge: true,
-		})
+	if len(result.Items) == 0 {
+		tlog.Println("No recycle items found.")
+		return
 	}
-	t.SetStyle(KrbTableStyle)
-	t.Render()
+
+	switch getRecyclePoliciesFlags.OutputFormat {
+	case "yaml":
+		output, err := yaml.Marshal(result)
+		if err != nil {
+			tlog.Panicf("failed to marshal recycle policies to yaml: %v", err)
+		}
+		tlog.Print(string(output))
+	case "json":
+		y, err := yaml.Marshal(result)
+		if err != nil {
+			tlog.Panicf("failed to marshal recycle policies to json: %v", err)
+		}
+		j, err := yaml.YAMLToJSON(y)
+		if err != nil {
+			tlog.Panicf("failed to convert recycle policies to json: %v", err)
+		}
+		var output bytes.Buffer
+		if err := json.Indent(&output, j, "", "  "); err != nil {
+			tlog.Panicf("failed to indent recycle policies json: %v", err)
+		}
+		tlog.Println(output.String())
+	default:
+		t := table.NewWriter()
+		t.SetOutputMirror(os.Stdout)
+		t.AppendHeader(table.Row{"Name", "Target GR", "Target Namespaces", "Age"})
+
+		for _, obj := range result.Items {
+			t.AppendRow(table.Row{obj.Name, obj.Target.GroupResource().String(), strings.Join(obj.Target.Namespaces, ","), duration.HumanDuration(time.Since(obj.CreationTimestamp.Time))}, table.RowConfig{
+				AutoMerge: true,
+			})
+		}
+		t.SetStyle(KrbTableStyle)
+		t.Render()
+	}
+
 }

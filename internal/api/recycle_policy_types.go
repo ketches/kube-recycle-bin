@@ -17,6 +17,8 @@ limitations under the License.
 package api
 
 import (
+	"slices"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -42,17 +44,15 @@ type RecyclePolicyList struct {
 }
 
 func NewRecyclePolicy(gvr schema.GroupVersionResource, targetNamespaces []string) *RecyclePolicy {
-	if len(targetNamespaces) == 0 {
-		targetNamespaces = []string{metav1.NamespaceAll}
-	}
+	targetNamespaces = slices.DeleteFunc(targetNamespaces, func(ns string) bool {
+		return ns == metav1.NamespaceAll
+	})
 
 	labels := map[string]string{
 		"krb.ketches.cn/target-gr": gvr.GroupResource().String(),
 	}
 	for _, ns := range targetNamespaces {
-		if ns != metav1.NamespaceAll {
-			labels["krb.ketches.cn/target-namespace-"+ns] = "true"
-		}
+		labels["krb.ketches.cn/target-namespace-"+ns] = "true"
 	}
 
 	return &RecyclePolicy{

@@ -17,7 +17,9 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"time"
 
@@ -31,11 +33,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/duration"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 type GetRecycleItemFlags struct {
 	ObjectResource  string
 	ObjectNamespace string
+	OutputFormat    string
 }
 
 var getRecycleItemFlags GetRecycleItemFlags
@@ -70,9 +74,13 @@ func init() {
 
 	getRecycleItemCmd.Flags().StringVarP(&getRecycleItemFlags.ObjectResource, "object-resource", "", "", "List recycled resource objects filtered by the specified object resource")
 	getRecycleItemCmd.Flags().StringVarP(&getRecycleItemFlags.ObjectNamespace, "object-namespace", "", "", "List recycled resource objects filtered by the specified object namespace")
+	getRecycleItemCmd.Flags().StringVarP(&getRecycleItemFlags.OutputFormat, "output", "o", "", "Output format. One of: json|yaml")
 
 	getRecycleItemCmd.RegisterFlagCompletionFunc("object-resource", completion.RecycleItemGroupResource)
 	getRecycleItemCmd.RegisterFlagCompletionFunc("object-namespace", completion.RecycleItemNamespace)
+	getRecycleItemCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"json", "yaml"}, cobra.ShellCompDirectiveNoFileComp
+	})
 }
 
 func runGetRecycleItems(args []string) {
@@ -111,15 +119,42 @@ func runGetRecycleItems(args []string) {
 		result = *list
 	}
 
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"name", "group", "version", "kind", "namespace", "name", "age"})
-
-	for _, obj := range result.Items {
-		t.AppendRow(table.Row{obj.Name, obj.Object.Group, obj.Object.Version, obj.Object.Resource, obj.Object.Namespace, obj.Object.Name, duration.HumanDuration(time.Since(obj.CreationTimestamp.Time))}, table.RowConfig{
-			AutoMerge: true,
-		})
+	if len(result.Items) == 0 {
+		tlog.Println("No recycle items found.")
+		return
 	}
-	t.SetStyle(KrbTableStyle)
-	t.Render()
+
+	switch getRecycleItemFlags.OutputFormat {
+	case "yaml":
+		output, err := yaml.Marshal(result)
+		if err != nil {
+			tlog.Panicf("failed to marshal recycle items to yaml: %v", err)
+		}
+		tlog.Print(string(output))
+	case "json":
+		y, err := yaml.Marshal(result)
+		if err != nil {
+			tlog.Panicf("failed to marshal recycle items to json: %v", err)
+		}
+		j, err := yaml.YAMLToJSON(y)
+		if err != nil {
+			tlog.Panicf("failed to convert recycle items to json: %v", err)
+		}
+		var output bytes.Buffer
+		if err := json.Indent(&output, j, "", "  "); err != nil {
+			tlog.Panicf("failed to indent recycle items json: %v", err)
+		}
+		tlog.Println(output.String())
+	default:
+		t := table.NewWriter()
+		t.SetOutputMirror(os.Stdout)
+		t.AppendHeader(table.Row{"Name", "Object Key", "Object APIVersion", "Object Kind", "Age"})
+		for _, obj := range result.Items {
+			t.AppendRow(table.Row{obj.Name, obj.Object.Key().String(), obj.Object.GroupVersion().String(), obj.Object.Kind, duration.HumanDuration(time.Since(obj.CreationTimestamp.Time))}, table.RowConfig{
+				AutoMerge: true,
+			})
+		}
+		t.SetStyle(KrbTableStyle)
+		t.Render()
+	}
 }

@@ -67,24 +67,27 @@ spec:
                 - name
                 - raw
       additionalPrinterColumns:
-        - name: Group
-          type: string
-          jsonPath: .object.group
-        - name: Version
-          type: string
-          jsonPath: .object.version
-        - name: Kind
-          type: string
-          jsonPath: .object.kind
-        - name: Resource
-          type: string
-          jsonPath: .object.resource
-        - name: Namespace
-          type: string
-          jsonPath: .object.namespace
-        - name: Name
+        - name: Recycled Object
           type: string
           jsonPath: .object.name
+        - name: Object Kind
+          type: string
+          jsonPath: .object.kind
+        - name: Object Namespace
+          type: string
+          jsonPath: .object.namespace
+        - name: Object Group
+          type: string
+          jsonPath: .object.group
+          priority: 1
+        - name: Object Version
+          type: string
+          jsonPath: .object.version
+          priority: 1
+        - name: Object Resource
+          type: string
+          jsonPath: .object.resource
+          priority: 1
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
@@ -139,15 +142,16 @@ spec:
               required:
                 - resource
       additionalPrinterColumns:
+        - name: Target Resource
+          type: string
+          jsonPath: .target.resource
+        - name: Target Namespaces
+          type: string
+          jsonPath: .target.namespaces
         - name: Group
           type: string
           jsonPath: .target.group
-        - name: Resource
-          type: string
-          jsonPath: .target.resource
-        - name: Namespaces
-          type: string
-          jsonPath: .target.namespaces
+          priority: 1
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp

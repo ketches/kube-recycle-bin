@@ -100,13 +100,19 @@ func (obj *RecycledObject) GroupVersionResource() schema.GroupVersionResource {
 		Version:  obj.Version,
 		Resource: obj.Resource,
 	}
-
 }
 
 func (obj *RecycledObject) GroupResource() schema.GroupResource {
 	return schema.GroupResource{
 		Group:    obj.Group,
 		Resource: obj.Resource,
+	}
+}
+
+func (obj *RecycledObject) GroupVersion() schema.GroupVersion {
+	return schema.GroupVersion{
+		Group:   obj.Group,
+		Version: obj.Version,
 	}
 }
 
