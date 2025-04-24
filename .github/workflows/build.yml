@@ -1,4 +1,4 @@
-# .github/workflows/release.yml
+# .github/workflows/build.yml
 name: build
 
 on:
