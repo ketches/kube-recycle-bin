@@ -24,7 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/yaml"
 )
@@ -53,13 +52,9 @@ type RecycleItemList struct {
 }
 
 func NewRecycleItem(recycledObj *RecycledObject) *RecycleItem {
-	gr := metav1.GroupResource{
-		Group:    recycledObj.Group,
-		Resource: recycledObj.Resource,
-	}
 	labels := map[string]string{
 		"krb.ketches.cn/object-name": recycledObj.Name,
-		"krb.ketches.cn/object-gr":   gr.String(),
+		"krb.ketches.cn/object-gr":   recycledObj.GroupResource().String(),
 		"krb.ketches.cn/recycled-at": fmt.Sprintf("%d", metav1.Now().Unix()),
 	}
 	if recycledObj.Namespace != "" {
@@ -72,18 +67,18 @@ func NewRecycleItem(recycledObj *RecycledObject) *RecycleItem {
 			Kind:       RecycleItemKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   fmt.Sprintf("%s-%s", recycledObj.Name, rand.String(8)),
+			Name:   recycledObj.Name + "-" + rand.String(8),
 			Labels: labels,
 		},
 		Object: *recycledObj,
 	}
 }
 
-func (obj *RecycledObject) Key() types.NamespacedName {
-	return types.NamespacedName{
-		Name:      obj.Name,
-		Namespace: obj.Namespace,
+func (obj *RecycledObject) Key() string {
+	if obj.Namespace == "" {
+		return obj.Name
 	}
+	return obj.Namespace + "/" + obj.Name
 }
 
 func (obj *RecycledObject) GroupVersionKind() schema.GroupVersionKind {

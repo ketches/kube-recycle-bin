@@ -86,9 +86,9 @@ func runRestore(args []string) {
 		}
 
 		if _, err := kube.DynamicClient().Resource(recycleItem.Object.GroupVersionResource()).Namespace(recycleItem.Object.Namespace).Create(context.Background(), unstructuredObj, metav1.CreateOptions{}); err != nil {
-			tlog.Printf("✗ failed to restore recycled resource object [%s]: %v", recycleItem.Object.Key().String(), err)
+			tlog.Printf("✗ failed to restore recycled resource object [%s]: %v", recycleItem.Object.Key(), err)
 		} else {
-			tlog.Printf("✓ restored recycled resource object [%s: %s] done.", recycleItem.Object.Resource, recycleItem.Object.Key().String())
+			tlog.Printf("✓ restored recycled resource object [%s: %s] done.", recycleItem.Object.Resource, recycleItem.Object.Key())
 			// delete the recycle item after successful restore
 			if err := krbclient.RecycleItem().Delete(context.Background(), recycleItemName, client.DeleteOptions{}); err != nil {
 				tlog.Printf("✗ failed to automatically delete RecycleItem [%s] after restore: %v", recycleItemName, err)

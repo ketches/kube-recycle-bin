@@ -150,7 +150,7 @@ func runGetRecycleItems(args []string) {
 		t.SetOutputMirror(os.Stdout)
 		t.AppendHeader(table.Row{"Name", "Object Key", "Object APIVersion", "Object Kind", "Age"})
 		for _, obj := range result.Items {
-			t.AppendRow(table.Row{obj.Name, obj.Object.Key().String(), obj.Object.GroupVersion().String(), obj.Object.Kind, duration.HumanDuration(time.Since(obj.CreationTimestamp.Time))}, table.RowConfig{
+			t.AppendRow(table.Row{obj.Name, obj.Object.Key(), obj.Object.GroupVersion().String(), obj.Object.Kind, duration.HumanDuration(time.Since(obj.CreationTimestamp.Time))}, table.RowConfig{
 				AutoMerge: true,
 			})
 		}

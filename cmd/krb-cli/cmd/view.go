@@ -90,19 +90,19 @@ func runView(args []string) {
 		case "json":
 			objContent, err := recycleItem.Object.IndentedJSON()
 			if err != nil {
-				tlog.Printf("✗ failed to view recycled resource object [%s: %s] from RecycleItem [%s] in JSON format: %s, error: %v", recycleItem.Object.Kind, recycleItem.Object.Key().String(), recycleItem.Name, recycleItem.Name, err)
+				tlog.Printf("✗ failed to view recycled resource object [%s: %s] from RecycleItem [%s] in JSON format: %s, error: %v", recycleItem.Object.Kind, recycleItem.Object.Key(), recycleItem.Name, recycleItem.Name, err)
 				continue
 			}
 			objContents = append(objContents, objContent)
-			// tlog.Printf("✓ recycled resource object [%s: %s] from RecycleItem [%s]: \n%s \n", recycleItem.Object.Kind, recycleItem.Object.Key().String(), recycleItem.Name, objContent)
+			// tlog.Printf("✓ recycled resource object [%s: %s] from RecycleItem [%s]: \n%s \n", recycleItem.Object.Kind, recycleItem.Object.Key(), recycleItem.Name, objContent)
 		default:
 			objContent, err := recycleItem.Object.YAML()
 			if err != nil {
-				tlog.Printf("✗ failed to view recycled resource object [%s: %s] from RecycleItem [%s] in YAML format: %s, error: %v", recycleItem.Object.Kind, recycleItem.Object.Key().String(), recycleItem.Name, recycleItem.Name, err)
+				tlog.Printf("✗ failed to view recycled resource object [%s: %s] from RecycleItem [%s] in YAML format: %s, error: %v", recycleItem.Object.Kind, recycleItem.Object.Key(), recycleItem.Name, recycleItem.Name, err)
 				continue
 			}
 			objContents = append(objContents, objContent)
-			// tlog.Printf("✓ recycled resource object [%s: %s] from RecycleItem [%s]: \n%s \n", recycleItem.Object.Kind, recycleItem.Object.Key().String(), recycleItem.Name, objContent)
+			// tlog.Printf("✓ recycled resource object [%s: %s] from RecycleItem [%s]: \n%s \n", recycleItem.Object.Kind, recycleItem.Object.Key(), recycleItem.Name, objContent)
 		}
 	}
 	tlog.Print(strings.Join(objContents, "\n---\n"))

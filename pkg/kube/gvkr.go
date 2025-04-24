@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/restmapper"
 )
 
+// GetAllGroupResources returns all group resources in the cluster.
 func GetAllGroupResources() ([]string, error) {
 	discoveryClient := DiscoveryClient()
 
@@ -145,4 +146,21 @@ func GetPreferredGroupVersionResourceFor(resource string) (*schema.GroupVersionR
 		}
 	}
 	return nil, fmt.Errorf("can not find preferred GroupVersionResource for resource %s", resource)
+}
+
+// IsResourceNamespaced checks if the given GroupVersionResource is namespaced.
+func IsResourceNamespaced(gvr schema.GroupVersionResource) (bool, error) {
+	discoveryClient := DiscoveryClient()
+
+	apiResourceList, err := discoveryClient.ServerResourcesForGroupVersion(gvr.GroupVersion().String())
+	if err != nil {
+		return false, err
+	}
+
+	for _, apiResource := range apiResourceList.APIResources {
+		if apiResource.Name == gvr.Resource {
+			return apiResource.Namespaced, nil
+		}
+	}
+	return false, fmt.Errorf("can not assert if resource %s is namespaced", gvr.GroupResource().String())
 }

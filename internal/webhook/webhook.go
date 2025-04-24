@@ -27,10 +27,12 @@ import (
 	"github.com/ketches/kube-recycle-bin/internal/api"
 	krbclient "github.com/ketches/kube-recycle-bin/internal/client"
 	"github.com/ketches/kube-recycle-bin/internal/consts"
+	"github.com/ketches/kube-recycle-bin/pkg/kube"
 	"github.com/ketches/kube-recycle-bin/pkg/tlog"
+	"github.com/ketches/kube-recycle-bin/pkg/util"
 	admissionv1 "k8s.io/api/admission/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -78,26 +80,23 @@ func recycleDeleteObjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	request := review.Request
-	tlog.Infof("» prepare to recycle deleted object: %s - %s", request.Kind.String(), types.NamespacedName{
-		Name:      request.Name,
-		Namespace: request.Namespace,
-	}.String())
 
 	// Create RecycleItem to recycle the deleted object.
-	recycleItem := api.NewRecycleItem(buildRecycledObject(request))
-	if err := retry.OnError(retry.DefaultRetry, k8serrors.IsAlreadyExists, func() error {
-		if err := krbclient.RecycleItem().Create(context.Background(), recycleItem, client.CreateOptions{}); err != nil {
-			return err
+	recycledObj := buildRecycledObject(request)
+	if recycledObj != nil {
+		tlog.Infof("» prepare to recycle deleted object [%s: %s]", request.Kind.Kind, recycledObj.Key())
+		recycleItem := api.NewRecycleItem(recycledObj)
+		if err := retry.OnError(retry.DefaultRetry, k8serrors.IsAlreadyExists, func() error {
+			if err := krbclient.RecycleItem().Create(context.Background(), recycleItem, client.CreateOptions{}); err != nil {
+				return err
+			}
+
+			tlog.Infof("✓ recycle deleted object [%s: %s] done.", recycledObj.Kind, recycledObj.Key())
+
+			return nil
+		}); err != nil {
+			tlog.Errorf("✗ failed to recycle deleted object [%s: %s]: %v", recycledObj.Kind, recycledObj.Key(), err)
 		}
-
-		tlog.Infof("✓ recycle deleted object %s done", types.NamespacedName{
-			Name:      request.Name,
-			Namespace: request.Namespace,
-		}.String())
-
-		return nil
-	}); err != nil {
-		tlog.Errorf("✗ failed to recycle deleted object: %v", err)
 	}
 
 	response(w, review)
@@ -119,12 +118,21 @@ func parseRequest(r *http.Request) (*admissionv1.AdmissionReview, error) {
 
 // buildRecycledObject constructs api.RecycledObject from the request
 func buildRecycledObject(request *admissionv1.AdmissionRequest) *api.RecycledObject {
+	namespaced, err := kube.IsResourceNamespaced(schema.GroupVersionResource{
+		Group:    request.Resource.Group,
+		Version:  request.Resource.Version,
+		Resource: request.Resource.Resource,
+	})
+	if err != nil {
+		tlog.Errorf("✗ failed to check if resource is namespaced: %v", err)
+		return nil
+	}
 	return &api.RecycledObject{
 		Group:     request.Resource.Group,
 		Version:   request.Resource.Version,
 		Resource:  request.Resource.Resource,
 		Kind:      request.Kind.Kind,
-		Namespace: request.Namespace,
+		Namespace: util.If(namespaced, request.Namespace, ""),
 		Name:      request.Name,
 		Raw:       request.OldObject.Raw,
 	}
