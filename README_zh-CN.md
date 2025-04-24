@@ -99,7 +99,10 @@ kubectl delete svc krb-test-nginx-svc -n dev
 # 查看回收站，执行以下命令可以获取已删除的资源，说明回收策略已经生效
 krb-cli get ri
 
-# 还原资源，根据以上命令获取到的回收站资源名称
+# 查看回收的资源对象，根据以上命令获取到的回收站资源名称
+krb-cli view krb-test-nginx-deploy-skk5c89b krb-test-nginx-svc-txv4vj6v
+
+# 还原资源
 krb-cli restore krb-test-nginx-deploy-skk5c89b krb-test-nginx-svc-txv4vj6v
 
 # 查看还原的资源

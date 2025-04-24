@@ -96,7 +96,10 @@ kubectl delete svc krb-test-nginx-svc -n dev
 # Check the recycle bin. Execute the following command to get the deleted resources, indicating that the recycling policy has taken effect.
 krb-cli get ri
 
-# Restore the resource using the resource name obtained from the above command
+# View the recycled resource objects using the resource name obtained from the above command
+krb-cli view krb-test-nginx-deploy-skk5c89b krb-test-nginx-svc-txv4vj6v
+
+# Restore the recycled resource objects
 krb-cli restore krb-test-nginx-deploy-skk5c89b krb-test-nginx-svc-txv4vj6v
 
 # Check the restored resources
