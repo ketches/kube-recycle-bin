@@ -84,18 +84,18 @@ func recycleDeleteObjects(w http.ResponseWriter, r *http.Request) {
 	// Create RecycleItem to recycle the deleted object.
 	recycledObj := buildRecycledObject(request)
 	if recycledObj != nil {
-		tlog.Infof("» prepare to recycle deleted object [%s: %s]", request.Kind.Kind, recycledObj.Key())
+		tlog.Infof("» prepare to recycle deleted object [%s: %s]", recycledObj.GroupResource().String(), recycledObj.Key())
 		recycleItem := api.NewRecycleItem(recycledObj)
 		if err := retry.OnError(retry.DefaultRetry, k8serrors.IsAlreadyExists, func() error {
 			if err := krbclient.RecycleItem().Create(context.Background(), recycleItem, client.CreateOptions{}); err != nil {
 				return err
 			}
 
-			tlog.Infof("✓ recycle deleted object [%s: %s] done.", recycledObj.Kind, recycledObj.Key())
+			tlog.Infof("✓ recycle deleted object [%s: %s] done.", recycledObj.GroupResource().String(), recycledObj.Key())
 
 			return nil
 		}); err != nil {
-			tlog.Errorf("✗ failed to recycle deleted object [%s: %s]: %v", recycledObj.Kind, recycledObj.Key(), err)
+			tlog.Errorf("✗ failed to recycle deleted object [%s: %s]: %v", recycledObj.GroupResource().String(), recycledObj.Key(), err)
 		}
 	}
 

@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"context"
-	"strings"
 
 	krbclient "github.com/ketches/kube-recycle-bin/internal/client"
 	"github.com/ketches/kube-recycle-bin/internal/completion"
@@ -78,7 +77,7 @@ func runView(args []string) {
 		tlog.Panicf("✗ please specify recycle items to view.")
 	}
 
-	var objContents []string
+	firstOutPut := true
 	for _, recycleItemName := range args {
 		recycleItem, err := krbclient.RecycleItem().Get(context.Background(), recycleItemName, client.GetOptions{})
 		if err != nil {
@@ -90,20 +89,24 @@ func runView(args []string) {
 		case "json":
 			objContent, err := recycleItem.Object.IndentedJSON()
 			if err != nil {
-				tlog.Printf("✗ failed to view recycled resource object [%s: %s] from RecycleItem [%s] in JSON format: %s, error: %v", recycleItem.Object.Kind, recycleItem.Object.Key(), recycleItem.Name, recycleItem.Name, err)
+				tlog.Printf("✗ failed to view recycled resource object [%s: %s] from RecycleItem [%s] in JSON format: %s, error: %v", recycleItem.Object.GroupResource().String(), recycleItem.Object.Key(), recycleItem.Name, recycleItem.Name, err)
 				continue
 			}
-			objContents = append(objContents, objContent)
-			// tlog.Printf("✓ recycled resource object [%s: %s] from RecycleItem [%s]: \n%s \n", recycleItem.Object.Kind, recycleItem.Object.Key(), recycleItem.Name, objContent)
+
+			tlog.Printf("» [%s: %s]\n", recycleItem.Object.GroupResource().String(), recycleItem.Object.Key())
+			tlog.Println(objContent)
 		default:
 			objContent, err := recycleItem.Object.YAML()
 			if err != nil {
-				tlog.Printf("✗ failed to view recycled resource object [%s: %s] from RecycleItem [%s] in YAML format: %s, error: %v", recycleItem.Object.Kind, recycleItem.Object.Key(), recycleItem.Name, recycleItem.Name, err)
+				tlog.Printf("✗ failed to view recycled resource object [%s: %s] from RecycleItem [%s] in YAML format: %s, error: %v", recycleItem.Object.GroupResource().String(), recycleItem.Object.Key(), recycleItem.Name, recycleItem.Name, err)
 				continue
 			}
-			objContents = append(objContents, objContent)
-			// tlog.Printf("✓ recycled resource object [%s: %s] from RecycleItem [%s]: \n%s \n", recycleItem.Object.Kind, recycleItem.Object.Key(), recycleItem.Name, objContent)
+			if firstOutPut {
+				firstOutPut = false
+			} else {
+				tlog.Printf("---")
+			}
+			tlog.Print(objContent)
 		}
 	}
-	tlog.Print(strings.Join(objContents, "\n---\n"))
 }
