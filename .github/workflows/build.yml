@@ -46,7 +46,7 @@ jobs:
           push: true
           build-args: |
             KRB_APPNAME=krb-controller
-          tags: 
+          tags: |
             registry.cn-hangzhou.aliyuncs.com/ketches/krb-controller:${{ env.KRB_VERSION }}
             registry.cn-hangzhou.aliyuncs.com/ketches/krb-controller:latest
             ketches/krb-controller:${{ env.KRB_VERSION }}
