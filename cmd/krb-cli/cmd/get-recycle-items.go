@@ -101,7 +101,6 @@ func runGetRecycleItems(args []string) {
 			labelSet["krb.ketches.cn/object-namespace"] = getRecycleItemFlags.ObjectNamespace
 		}
 		if getRecycleItemFlags.ObjectResource != "" {
-			tlog.Println(getRecycleItemFlags.ObjectResource)
 			if gvr, err := kube.GetPreferredGroupVersionResourceFor(getRecycleItemFlags.ObjectResource); err != nil {
 				tlog.Panicf("✗ failed to get preferred group version resource: %v", err)
 			} else {
